@@ -92,7 +92,7 @@ export const Header: React.FC<HeaderProps> = ({
                 ? 'bg-amber-400 text-slate-950 border-amber-300 font-bold shadow'
                 : 'text-amber-300 border-amber-400/50 hover:border-amber-300 hover:bg-amber-400/10'
             }`}
-            title="Painel de Configuração do Gestor (Senha 8619)"
+            title="Painel de Configuração do Gestor"
           >
             <Settings className="w-4 h-4" />
             <span>GESTOR</span>

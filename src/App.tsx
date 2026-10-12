@@ -25,7 +25,7 @@ export default function App() {
   // Navigation tab
   const [activeTab, setActiveTab] = useState<ActiveTab>('painel');
 
-  // Gestor unlock state (password 8619)
+  // Gestor unlock state
   const [isGestorUnlocked, setIsGestorUnlocked] = useState(false);
 
   // Setup being edited / resumed

@@ -225,7 +225,7 @@ export const HistoricoPanel: React.FC<HistoricoPanelProps> = ({
                           <span>Ver Tudo</span>
                         </button>
 
-                        {/* LIXEIRINHA PROTEGIDA COM SENHA 8619 */}
+                        {/* Lixeira com confirmacao de senha */}
                         <button
                           type="button"
                           onClick={(e) => {
@@ -233,7 +233,7 @@ export const HistoricoPanel: React.FC<HistoricoPanelProps> = ({
                             handleOpenDelete(it);
                           }}
                           className="bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border border-red-200 p-1.5 rounded-lg transition inline-flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95"
-                          title="Excluir setup do histórico (requer senha do gestor)"
+                          title="Excluir setup do histórico"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -416,7 +416,7 @@ export const HistoricoPanel: React.FC<HistoricoPanelProps> = ({
         </div>
       )}
 
-      {/* Delete Modal with Password 8619 Requirement */}
+      {/* Modal de exclusao com confirmacao de senha */}
       {setupToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center border border-slate-200 animate-in zoom-in-95 duration-150">
@@ -435,7 +435,7 @@ export const HistoricoPanel: React.FC<HistoricoPanelProps> = ({
 
             <div className="bg-amber-50 border border-amber-200 text-amber-900 p-2.5 rounded-lg text-[11px] mb-4 text-left flex items-start gap-1.5">
               <Lock className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-              <span>Esta ação é irreversível. Digite a senha do gestor (8619) para autorizar:</span>
+              <span>Esta ação é irreversível. Digite a senha do gestor para autorizar a exclusão:</span>
             </div>
 
             <form onSubmit={handleConfirmDelete} className="space-y-3">
