@@ -1,0 +1,6 @@
+{
+  "name": "Setup Externo",
+  "description": "Sistema de gestão e monitoramento de Setup Externo com checklist, painel ativo em tempo real, histórico e painel do gestor.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

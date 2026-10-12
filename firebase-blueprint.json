@@ -1,0 +1,61 @@
+{
+  "entities": {
+    "Setup": {
+      "title": "Setup",
+      "description": "Registro de checklist de setup externo de máquina",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Identificador único do setup" },
+        "colaborador": { "type": "string", "description": "Nome do preparador externo" },
+        "modelo": { "type": "string", "description": "Modelo da peça" },
+        "maquina": { "type": "string", "description": "Número e identificação da máquina" },
+        "tipoMaquina": { "type": "string", "description": "Tipo de layout da máquina (ex: INDEX ABC, T.CNC)" },
+        "statusGeral": { "type": "string", "description": "Status geral: ⚠️ PENDENTE, ✅ LIBERADO, ✅ EXECUTADO, ❌ CANCELADO" },
+        "respostas": { "type": "array", "description": "Lista de itens checados com status e observação" },
+        "pendencias": { "type": "array", "description": "Lista textual de pendências ativas" },
+        "createdAt": { "type": "string", "description": "Data/hora de criação ISO" },
+        "updatedAt": { "type": "string", "description": "Data/hora de última atualização ISO" },
+        "finalizadoAt": { "type": "string", "description": "Data/hora de finalização ISO se aplicável" },
+        "finalizadoPor": { "type": "string", "description": "Usuário que finalizou ou cancelou" },
+        "isFinalizado": { "type": "boolean", "description": "Indica se o setup foi finalizado ou cancelado" }
+      },
+      "required": ["colaborador", "modelo", "maquina", "tipoMaquina", "statusGeral", "respostas"]
+    },
+    "TarefaConfig": {
+      "title": "TarefaConfig",
+      "description": "Item de checklist vinculado a um tipo de layout de máquina",
+      "type": "object",
+      "properties": {
+        "nome": { "type": "string", "description": "Descrição do item a checar" },
+        "tipo": { "type": "string", "description": "Tipo de máquina associado" },
+        "ordem": { "type": "number", "description": "Ordem de exibição" }
+      },
+      "required": ["nome", "tipo"]
+    },
+    "ItemCatalogo": {
+      "title": "ItemCatalogo",
+      "description": "Item de catálogo de configuração (modelo, máquina ou preparador)",
+      "type": "object",
+      "properties": {
+        "valor": { "type": "string", "description": "Nome ou código do item" },
+        "categoria": { "type": "string", "description": "modelos | maquinas | colaboradores | tiposMaquinas" },
+        "ativo": { "type": "boolean", "description": "Status ativo" }
+      },
+      "required": ["valor", "categoria"]
+    }
+  },
+  "firestore": {
+    "/setups/{setupId}": {
+      "schema": "Setup",
+      "description": "Armazena os registros de setups externos e histórico de execuções"
+    },
+    "/tarefas/{tarefaId}": {
+      "schema": "TarefaConfig",
+      "description": "Armazena os itens de checklist por tipo de máquina gerenciados pelo gestor"
+    },
+    "/catalogo/{itemId}": {
+      "schema": "ItemCatalogo",
+      "description": "Armazena cadastros de modelos, máquinas, colaboradores e tipos configurados pelo gestor"
+    }
+  }
+}

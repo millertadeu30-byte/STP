@@ -1,0 +1,132 @@
+import { TarefaConfig } from '../types';
+
+export const DEFAULT_TIPOS_MAQUINA: string[] = [
+  'T.CNC',
+  'T.A.',
+  'INDEX ABC',
+  'INDEX C100'
+];
+
+export const DEFAULT_MODELOS: string[] = [
+  'AL32003',
+  'AL104000',
+  'PL1106',
+  'BR1404',
+  'PL1151',
+  '9160',
+  'AL32016',
+  'PC11103',
+  'BR102001',
+  'CU2537E10',
+  'CU2538E10',
+  '41746',
+  'CU25',
+  '41152',
+  'AL132005',
+  'AL132008',
+  'AL132503',
+  'E119033'
+];
+
+export const DEFAULT_MAQUINAS: string[] = [
+  'N4 - TND180',
+  'N12 - TNG42',
+  'N21 - INDEX C100',
+  'N14 - STAR 38',
+  'N8 - STAR20J',
+  'N6 - STAR16',
+  'N11 - STAR 20R',
+  'N13 - STAR 20R',
+  'N16 - INDEX ABC',
+  'N17 - STAR 32JIII',
+  'N19 - STAR 20R',
+  'TA-01',
+  'N18 - INDEX ABC',
+  'N9 - TBSY',
+  'N20 - CITIZEN',
+  'N10 - STAR 32R'
+];
+
+export const DEFAULT_COLABORADORES: string[] = [
+  'MILLER',
+  'GABRIEL',
+  'CAIO'
+];
+
+export const DEFAULT_TAREFAS: TarefaConfig[] = [
+  // T.CNC
+  { nome: 'DESENHO (2 UNIDADES)', tipo: 'T.CNC', ordem: 1 },
+  { nome: 'FOLHA DE PROCESSO SEM RESTRIÇÕES FISICA OU DRIVE', tipo: 'T.CNC', ordem: 2 },
+  { nome: 'PGM ATUALIZADO NA MAQUINA OU PENDRIVE', tipo: 'T.CNC', ordem: 3 },
+  { nome: 'BARRAS SUFICIENTE PARA FABRICAÇÃO DO LOTE', tipo: 'T.CNC', ordem: 4 },
+  { nome: 'BARRAS PRONTAS PARA USINAR JÁ ALOCADAS NO TORNO', tipo: 'T.CNC', ordem: 5 },
+  { nome: 'FERRAMENTAL DE ACORDO COM PROGRAMA', tipo: 'T.CNC', ordem: 6 },
+  { nome: 'DMMS DISPONIVEIS DE ACORDO COM FOLHA DE PROCESSO (CALIBRES/RC)', tipo: 'T.CNC', ordem: 7 },
+  { nome: 'PINÇAS DO ALIMENTADOR', tipo: 'T.CNC', ordem: 8 },
+  { nome: 'PINÇAS DOS CABEÇOTES', tipo: 'T.CNC', ordem: 9 },
+  { nome: 'EXPULSADOR', tipo: 'T.CNC', ordem: 10 },
+  { nome: 'CHAVES E DISPOSITIVOS DE TROCA DE PINÇA DOS CABEÇOTES', tipo: 'T.CNC', ordem: 11 },
+  { nome: 'CARRINHO DE SETUP COMPLETO SEM FALTA DE CHAVES', tipo: 'T.CNC', ordem: 12 },
+  { nome: 'PEÇA MODELO OU COM O MESMO DIMENSIONAL DE FIXAÇÃO', tipo: 'T.CNC', ordem: 13 },
+  { nome: 'MANGUEIRAS E CONEXÕES PARA REFRIGERAÇÃO', tipo: 'T.CNC', ordem: 14 },
+  { nome: 'FERRAMENTA RESERVA DISPONIVEL (FERRAMENTA GÊMEA)', tipo: 'T.CNC', ordem: 15 },
+
+  // T.A.
+  { nome: 'CURVAS DE ACORDO COM O MODELO DA PEÇA', tipo: 'T.A.', ordem: 1 },
+  { nome: 'FERRAMENTAS (BROCA, PERFIL)', tipo: 'T.A.', ordem: 2 },
+  { nome: 'FERRAMENTAS GÊMEAS AFIADA', tipo: 'T.A.', ordem: 3 },
+  { nome: 'CARRINHO DE SETUP COMPLETO SEM FALTA DE CHAVES', tipo: 'T.A.', ordem: 4 },
+  { nome: 'DESENHO (2 UNIDADES)', tipo: 'T.A.', ordem: 5 },
+  { nome: 'FOLHA DE PROCESSO SEM RESTRIÇÕES FISICA OU DRIVE', tipo: 'T.A.', ordem: 6 },
+  { nome: 'BARRAS SUFICIENTE PARA FABRICAÇÃO DO LOTE', tipo: 'T.A.', ordem: 7 },
+  { nome: 'BARRAS PRONTAS PARA USINAR JÁ ALOCADAS NO TORNO', tipo: 'T.A.', ordem: 8 },
+  { nome: 'DMMS DISPONIVEIS DE ACORDO COM FOLHA DE PROCESSO (CALIBRES/RC)', tipo: 'T.A.', ordem: 9 },
+  { nome: 'PINÇAS DOS CABEÇOTES', tipo: 'T.A.', ordem: 10 },
+  { nome: 'PEÇA MODELO PARA COMPARAÇÃO', tipo: 'T.A.', ordem: 11 },
+
+  // INDEX ABC
+  { nome: 'DESENHO (2 UNIDADES)', tipo: 'INDEX ABC', ordem: 1 },
+  { nome: 'FOLHA DE PROCESSO SEM RESTRIÇÕES FISICA OU DRIVE', tipo: 'INDEX ABC', ordem: 2 },
+  { nome: 'PGM ATUALIZADO NA MAQUINA OU PENDRIVE', tipo: 'INDEX ABC', ordem: 3 },
+  { nome: 'BARRAS SUFICIENTE PARA FABRICAÇÃO DO LOTE', tipo: 'INDEX ABC', ordem: 4 },
+  { nome: 'BARRAS PRONTAS PARA USINAR JÁ ALOCADAS NO TORNO', tipo: 'INDEX ABC', ordem: 5 },
+  { nome: 'FERRAMENTAL DE ACORDO COM PROGRAMA', tipo: 'INDEX ABC', ordem: 6 },
+  { nome: 'DMMS DISPONIVEIS DE ACORDO COM FOLHA DE PROCESSO (CALIBRES/RC)', tipo: 'INDEX ABC', ordem: 7 },
+  { nome: 'PRESSET EXTERNO HAIMER', tipo: 'INDEX ABC', ordem: 8 },
+  { nome: 'BUCHAS COM ESCOVA PARA BARRAS MAIOR QUE 30MM', tipo: 'INDEX ABC', ordem: 9 },
+  { nome: 'BUCHAS COM TECNIL PARA BARRAS MENOR QUE 30MM', tipo: 'INDEX ABC', ordem: 10 },
+  { nome: 'BUCHAS BIPARTIDAS (26 UNIDADES CONFORME DIAMETRO A USINAR)', tipo: 'INDEX ABC', ordem: 11 },
+  { nome: 'DENTES DE PLASTICO DO ALIMENTADOR', tipo: 'INDEX ABC', ordem: 12 },
+  { nome: 'PINÇAS E VDI REVOLVER 1', tipo: 'INDEX ABC', ordem: 13 },
+  { nome: 'PINÇAS E VDI REVOLVER 2', tipo: 'INDEX ABC', ordem: 14 },
+  { nome: 'PINÇAS PARA HIBO', tipo: 'INDEX ABC', ordem: 15 },
+  { nome: 'EXPULSADOR USINADO NO Ø E COMPRIMENTO CORRETO ( ENCOSTAR NA FACE PÇS VAZADAS)', tipo: 'INDEX ABC', ordem: 16 },
+  { nome: 'CHAVES E DISPOSITIVOS INDEX', tipo: 'INDEX ABC', ordem: 17 },
+  { nome: 'PEÇA MODELO', tipo: 'INDEX ABC', ordem: 18 },
+  { nome: 'FERR. AFIADAS RESERVA', tipo: 'INDEX ABC', ordem: 19 },
+  { nome: 'MESA PARA TRANSPORTE DOS INSUMOS DISPONIVEL', tipo: 'INDEX ABC', ordem: 20 },
+  { nome: 'TAMPÃO CASO NECESSARIO RETIRAR VDI', tipo: 'INDEX ABC', ordem: 21 },
+  { nome: 'TAMPÃO DE AÇO INTERNO CASO FOR RETIRAR VDI ACIONADA', tipo: 'INDEX ABC', ordem: 22 },
+
+  // INDEX C100
+  { nome: 'DESENHO (2 UNIDADES)', tipo: 'INDEX C100', ordem: 1 },
+  { nome: 'FOLHA DE PROCESSO SEM RESTRIÇÕES FISICA OU DRIVE', tipo: 'INDEX C100', ordem: 2 },
+  { nome: 'PGM ATUALIZADO NA MAQUINA OU PENDRIVE', tipo: 'INDEX C100', ordem: 3 },
+  { nome: 'BARRAS SUFICIENTE PARA FABRICAÇÃO DO LOTE', tipo: 'INDEX C100', ordem: 4 },
+  { nome: 'BARRAS PRONTAS PARA USINAR JÁ ALOCADAS NO TORNO', tipo: 'INDEX C100', ordem: 5 },
+  { nome: 'FERRAMENTAL DE ACORDO COM PROGRAMA', tipo: 'INDEX C100', ordem: 6 },
+  { nome: 'DMMS DISPONIVEIS DE ACORDO COM FOLHA DE PROCESSO (CALIBRES/RC)', tipo: 'INDEX C100', ordem: 7 },
+  { nome: 'PRESSET EXTERNO HAIMER', tipo: 'INDEX C100', ordem: 8 },
+  { nome: 'PINÇAS DO ALIMENTADOR', tipo: 'INDEX C100', ordem: 9 },
+  { nome: 'PINÇA DO SPINDLE PRINCIPAL', tipo: 'INDEX C100', ordem: 10 },
+  { nome: 'PINÇA DO SPINDLE SECUNDÁRIO', tipo: 'INDEX C100', ordem: 11 },
+  { nome: 'PINÇAS E VDI REVOLVER 1', tipo: 'INDEX C100', ordem: 12 },
+  { nome: 'PINÇAS E VDI REVOLVER 2', tipo: 'INDEX C100', ordem: 13 },
+  { nome: 'PINÇAS E VDI REVOLVER 3', tipo: 'INDEX C100', ordem: 14 },
+  { nome: 'CHAVES E DISPOSITIVOS INDEX', tipo: 'INDEX C100', ordem: 15 },
+  { nome: 'PEÇA MODELO', tipo: 'INDEX C100', ordem: 16 },
+  { nome: 'FERR. AFIADAS RESERVA', tipo: 'INDEX C100', ordem: 17 },
+  { nome: 'MESA PARA TRANSPORTE DOS INSUMOS DISPONIVEL', tipo: 'INDEX C100', ordem: 18 },
+  { nome: 'TAMPÃO CASO NECESSARIO RETIRAR VDI', tipo: 'INDEX C100', ordem: 19 },
+  { nome: 'TAMPÃO DE AÇO INTERNO CASO FOR RETIRAR VDI ACIONADA', tipo: 'INDEX C100', ordem: 20 }
+];
