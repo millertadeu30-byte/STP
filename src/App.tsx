@@ -164,6 +164,7 @@ export default function App() {
             tarefas={activeTarefas}
             catalogo={activeCatalogo}
             modelosAtivosNoPainel={modelosAtivosNoPainel}
+            setupsAtivos={setups.filter((s) => !s.isFinalizado)}
           />
         )}
 

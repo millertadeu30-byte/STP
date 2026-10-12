@@ -8,6 +8,10 @@ export const DEFAULT_TIPOS_MAQUINA: string[] = [
 ];
 
 export const DEFAULT_MODELOS: string[] = [
+  'CU2537',
+  'CU2538',
+  '2538',
+  'PC1152',
   'AL32003',
   'AL104000',
   'PL1106',
@@ -22,10 +26,10 @@ export const DEFAULT_MODELOS: string[] = [
   '41746',
   'CU25',
   '41152',
-  'AL132005',
   'AL132008',
   'AL132503',
-  'E119033'
+  'PC11279',
+  '41150'
 ];
 
 export const DEFAULT_MAQUINAS: string[] = [
