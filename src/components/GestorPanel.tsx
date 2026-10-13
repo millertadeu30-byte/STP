@@ -40,7 +40,10 @@ import {
   restaurarIntervalosPadrao,
   restaurarIntervaloDeUmaMaquina,
   obterModelosComIntervalos,
+  limparPlanilhaColada,
 } from '../services/sheetSyncService';
+import { esModeloValido } from '../utils/validation';
+import { limparModelosInvalidosDoCatalogo } from '../services/setupService';
 
 interface GestorPanelProps {
   isUnlocked: boolean;
@@ -647,13 +650,27 @@ export const GestorPanel: React.FC<GestorPanelProps> = ({
       {/* SUB-TAB: MODELOS */}
       {activeSubTab === 'modelos' && (
         <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-6 space-y-6">
-          <div className="pb-2 border-b border-slate-100">
-            <h3 className="text-base font-extrabold text-[#004680] uppercase">
-              Modelos de Peças ({catalogo.filter((c) => c.categoria === 'modelos').length})
-            </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Cadastre os códigos de peças/modelos que entram para fabricação e setup (sem qualquer valor financeiro).
-            </p>
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100">
+            <div>
+              <h3 className="text-base font-extrabold text-[#004680] uppercase">
+                Modelos de Peças ({catalogo.filter((c) => c.categoria === 'modelos' && esModeloValido(c.valor)).length})
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Cadastre os códigos de peças/modelos que entram para fabricação e setup (sem qualquer valor financeiro).
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                const qtd = await limparModelosInvalidosDoCatalogo();
+                showMsg(qtd > 0 ? `${qtd} modelos inválidos removidos do catálogo!` : 'Catálogo limpo: nenhum modelo inválido encontrado.');
+              }}
+              className="text-xs font-bold text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 border border-red-200 px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5"
+              title="Exclui qualquer número de quantidade ou cabeçalho salvo por engano"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Limpar Modelos Inválidos</span>
+            </button>
           </div>
 
           <form
@@ -682,7 +699,7 @@ export const GestorPanel: React.FC<GestorPanelProps> = ({
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 max-h-96 overflow-y-auto">
             {catalogo
-              .filter((c) => c.categoria === 'modelos')
+              .filter((c) => c.categoria === 'modelos' && esModeloValido(c.valor))
               .map((item) => (
                 <div
                   key={item.id}
@@ -891,15 +908,31 @@ export const GestorPanel: React.FC<GestorPanelProps> = ({
                       : 'Mapeamento verificado'}
                   </span>
                 </div>
-                <a
-                  href={SHEET_URL}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-[#004680] hover:underline font-bold flex items-center gap-1 text-[11px]"
-                >
-                  <span>Ver Planilha Original</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
+                <div className="flex items-center gap-2">
+                  {checkResultModal.origem === 'colada' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        limparPlanilhaColada();
+                        handleChecarPlanilha();
+                        showMsg('Dados colados anteriores limpos!');
+                      }}
+                      className="text-red-600 hover:text-red-800 text-[11px] font-bold underline cursor-pointer"
+                      title="Limpar texto colado anterior e restaurar mapeamento oficial"
+                    >
+                      Limpar dados colados
+                    </button>
+                  )}
+                  <a
+                    href={SHEET_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[#004680] hover:underline font-bold flex items-center gap-1 text-[11px]"
+                  >
+                    <span>Ver Planilha Original</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
               </div>
 
               {/* Regra explícita */}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { SetupRecord, TarefaConfig, CatalogoItem } from '../types';
-import { salvarSetup, salvarItemCatalogo } from '../services/setupService';
+import { salvarSetup, salvarItemCatalogo, limparModelosInvalidosDoCatalogo } from '../services/setupService';
 import {
   checarPlanilhaEAtualizarModelos,
   SHEET_URL,
@@ -13,6 +13,11 @@ import {
   parseSpreadsheetDataComRegra,
   restaurarIntervalosPadrao,
   restaurarIntervaloDeUmaMaquina,
+  PrintPlanilha,
+  obterPrintsPlanilha,
+  salvarPrintsPlanilha,
+  limparPlanilhaColada,
+  esModeloValido,
 } from '../services/sheetSyncService';
 import {
   ListChecks,
@@ -33,6 +38,8 @@ import {
   LockOpen,
   ClipboardPaste,
   Info,
+  Camera,
+  Image as ImageIcon,
 } from 'lucide-react';
 
 interface NovoSetupPanelProps {
@@ -72,12 +79,20 @@ export const NovoSetupPanel: React.FC<NovoSetupPanelProps> = ({
   const [checkResultModal, setCheckResultModal] = useState<ChecarPlanilhaResult | null>(null);
   const [showColarModal, setShowColarModal] = useState(false);
   const [colarTexto, setColarTexto] = useState('');
+  const [showPrintsModal, setShowPrintsModal] = useState(false);
+  const [prints, setPrints] = useState<PrintPlanilha[]>(() => obterPrintsPlanilha());
+  const [selectedPrintPreview, setSelectedPrintPreview] = useState<string | null>(null);
+
+  // Limpeza automática mandatória de modelos inválidos ao iniciar
+  useEffect(() => {
+    limparModelosInvalidosDoCatalogo().catch(console.error);
+  }, []);
 
   const tiposDisponiveis = catalogo
     .filter((c) => c.categoria === 'tiposMaquinas' && c.ativo)
     .map((c) => c.valor);
   const modelosCadastrados = catalogo
-    .filter((c) => c.categoria === 'modelos' && c.ativo)
+    .filter((c) => c.categoria === 'modelos' && c.ativo && esModeloValido(c.valor))
     .map((c) => c.valor);
   const maquinasCadastradas = catalogo
     .filter((c) => c.categoria === 'maquinas' && c.ativo)
@@ -322,6 +337,61 @@ export const NovoSetupPanel: React.FC<NovoSetupPanelProps> = ({
       setIsCheckingSheet(false);
     }
   };
+
+  const handleAdicionarPrint = (dataUrl: string, nomeArquivo?: string) => {
+    setPrints((prev) => {
+      const novoPrint: PrintPlanilha = {
+        id: Date.now().toString(),
+        dataUrl,
+        nome: nomeArquivo || `Print ${prev.length + 1}`,
+        criadoEm: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      };
+      const atualizados = prev.length >= 3 ? [...prev.slice(1), novoPrint] : [...prev, novoPrint];
+      salvarPrintsPlanilha(atualizados);
+      return atualizados;
+    });
+    setSheetSuccessMessage('Print da planilha anexado com sucesso!');
+    setTimeout(() => setSheetSuccessMessage(null), 3000);
+  };
+
+  const handleExcluirPrint = (id: string) => {
+    setPrints((prev) => {
+      const atualizados = prev.filter((p) => p.id !== id);
+      salvarPrintsPlanilha(atualizados);
+      return atualizados;
+    });
+  };
+
+  const handleLimparDadosColados = () => {
+    limparPlanilhaColada();
+    setColarTexto('');
+    handleChecarPlanilha();
+    setSheetSuccessMessage('Dados colados anteriores limpos! Planilha restaurada com mapeamento oficial.');
+    setTimeout(() => setSheetSuccessMessage(null), 3500);
+  };
+
+  useEffect(() => {
+    if (!showPrintsModal) return;
+    const handlePaste = (e: ClipboardEvent) => {
+      if (!e.clipboardData) return;
+      const items = e.clipboardData.items;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const file = items[i].getAsFile();
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (uploadEvent) => {
+              const dataUrl = uploadEvent.target?.result as string;
+              handleAdicionarPrint(dataUrl, `Print ${prints.length + 1} (Ctrl+V)`);
+            };
+            reader.readAsDataURL(file);
+          }
+        }
+      }
+    };
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [showPrintsModal, prints.length]);
 
   useEffect(() => {
     if (editSetup) {
@@ -773,7 +843,22 @@ export const NovoSetupPanel: React.FC<NovoSetupPanelProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowPrintsModal(true)}
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2.5 py-1 rounded-md shadow-2xs transition cursor-pointer"
+                    title="Anexar ou colar até 3 prints da planilha (Ctrl+V)"
+                  >
+                    <Camera className="w-3.5 h-3.5 text-purple-600" />
+                    <span>Prints (Ctrl+V)</span>
+                    {prints.length > 0 && (
+                      <span className="bg-purple-600 text-white text-[9px] px-1.5 py-0.2 rounded-full font-bold">
+                        {prints.length}
+                      </span>
+                    )}
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => setShowColarModal(true)}
@@ -781,8 +866,20 @@ export const NovoSetupPanel: React.FC<NovoSetupPanelProps> = ({
                     title="Colar dados copiados diretamente do Google Planilhas (Ctrl+V)"
                   >
                     <ClipboardPaste className="w-3.5 h-3.5" />
-                    <span>Colar Planilha</span>
+                    <span>Colar Texto</span>
                   </button>
+
+                  {checkResultModal.origem === 'colada' && (
+                    <button
+                      type="button"
+                      onClick={handleLimparDadosColados}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-red-600 hover:text-red-800 bg-red-50 border border-red-200 px-2 py-1 rounded-md transition cursor-pointer"
+                      title="Limpar dados colados anteriores e restaurar mapeamento oficial"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>Limpar Colado</span>
+                    </button>
+                  )}
 
                   <a
                     href={SHEET_URL}
@@ -1075,6 +1172,187 @@ export const NovoSetupPanel: React.FC<NovoSetupPanelProps> = ({
                 <Check className="w-4 h-4" />
                 <span>Processar com a Regra</span>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal de Anexar Prints da Planilha (Ctrl+V) */}
+      {showPrintsModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-xl w-full flex flex-col overflow-hidden max-h-[90vh]">
+            <div className="bg-purple-800 text-white p-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Camera className="w-5 h-5 text-purple-300" />
+                <h3 className="font-extrabold text-sm uppercase tracking-wide">
+                  Prints da Planilha (Atalho Ctrl+V / Imagens)
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowPrintsModal(false)}
+                className="text-white/80 hover:text-white p-1 rounded transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4 overflow-y-auto flex-1 text-xs">
+              {/* Drop / Paste Zone */}
+              <div
+                className="border-2 border-dashed border-purple-300 hover:border-purple-500 bg-purple-50/60 rounded-xl p-5 text-center transition cursor-pointer flex flex-col items-center justify-center gap-2"
+                title="Clique aqui e pressione Ctrl+V para colar um print"
+              >
+                <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-700">
+                  <ImageIcon className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="font-bold text-slate-800 text-sm">
+                    Cole o Print aqui com <kbd className="bg-white border border-purple-300 px-1.5 py-0.5 rounded shadow-2xs font-mono text-purple-800 font-bold">Ctrl + V</kbd>
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Tire um print da tela no Google Planilhas (<kbd className="font-mono">Windows + Shift + S</kbd> ou <kbd className="font-mono">PrtScn</kbd>) e cole diretamente nesta janela!
+                  </p>
+                </div>
+
+                <label className="mt-1 cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-purple-300 text-purple-700 font-bold rounded-lg text-xs hover:bg-purple-50 shadow-2xs transition">
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Ou escolha arquivo do computador</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (uploadEvent) => {
+                          const dataUrl = uploadEvent.target?.result as string;
+                          handleAdicionarPrint(dataUrl, file.name);
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
+              </div>
+
+              {/* Prints já anexados */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-extrabold text-slate-700 text-xs uppercase tracking-wide">
+                    Prints Anexados ({prints.length} de 3):
+                  </span>
+                  {prints.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPrints([]);
+                        salvarPrintsPlanilha([]);
+                      }}
+                      className="text-[11px] text-red-600 hover:text-red-800 underline font-semibold cursor-pointer"
+                    >
+                      Remover todos
+                    </button>
+                  )}
+                </div>
+
+                {prints.length === 0 ? (
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-center text-slate-400 italic">
+                    Nenhum print anexado ainda. Aperte <kbd className="font-mono font-bold">Ctrl+V</kbd> para colar o primeiro print!
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {prints.map((p, idx) => (
+                      <div
+                        key={p.id || idx}
+                        className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs group hover:border-purple-400 transition flex flex-col"
+                      >
+                        <div
+                          className="h-28 bg-slate-100 overflow-hidden relative cursor-pointer"
+                          onClick={() => setSelectedPrintPreview(p.dataUrl)}
+                          title="Clique para ampliar o print"
+                        >
+                          <img
+                            src={p.dataUrl}
+                            alt={p.nome}
+                            className="w-full h-full object-cover group-hover:scale-105 transition duration-200"
+                          />
+                          <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white font-bold text-xs">
+                            Ampliar 🔍
+                          </div>
+                        </div>
+
+                        <div className="p-2 flex items-center justify-between bg-slate-50 border-t border-slate-100 text-[10px]">
+                          <div>
+                            <p className="font-extrabold text-slate-700 truncate max-w-[100px]">{p.nome}</p>
+                            <span className="text-slate-400">{p.criadoEm}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleExcluirPrint(p.id)}
+                            className="p-1 text-slate-400 hover:text-red-600 rounded transition cursor-pointer"
+                            title="Excluir print"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Dica da regra */}
+              <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl text-[11px] text-purple-900 flex items-start gap-2">
+                <Info className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold">Como o sistema usa esses prints:</p>
+                  <p className="text-purple-800 mt-0.5">
+                    Os prints ficam armazenados no app para conferência visual direta das colunas e linhas. Os intervalos configurados nos cadeados respeitam exatamente as linhas da planilha!
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-3 bg-slate-50 border-t border-slate-200 flex justify-between items-center">
+              <button
+                type="button"
+                onClick={handleLimparDadosColados}
+                className="text-red-600 hover:text-red-800 text-xs font-bold underline cursor-pointer"
+                title="Limpar qualquer texto anterior colado que possa ter bagunçado as colunas"
+              >
+                Limpar dados de texto antigos
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowPrintsModal(false)}
+                className="bg-purple-700 hover:bg-purple-800 text-white font-bold px-4 py-2 rounded-lg text-xs uppercase tracking-wider transition cursor-pointer"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Zoom do Print em tela cheia */}
+      {selectedPrintPreview && (
+        <div
+          className="fixed inset-0 z-60 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 cursor-zoom-out"
+          onClick={() => setSelectedPrintPreview(null)}
+        >
+          <div className="relative max-w-4xl max-h-[90vh] bg-white rounded-xl overflow-hidden shadow-2xl p-2" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center p-2 border-b border-slate-200">
+              <span className="text-xs font-bold text-slate-700">Visualização do Print da Planilha</span>
+              <button
+                onClick={() => setSelectedPrintPreview(null)}
+                className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-slate-800 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="max-h-[80vh] overflow-auto p-1">
+              <img src={selectedPrintPreview} alt="Print ampliado" className="max-w-full h-auto rounded" />
             </div>
           </div>
         </div>

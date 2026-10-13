@@ -19,6 +19,7 @@ import {
   DEFAULT_COLABORADORES,
   DEFAULT_TIPOS_MAQUINA
 } from '../data/defaultData';
+import { esModeloValido } from '../utils/validation';
 
 const SETUPS_COLLECTION = 'setups';
 const TAREFAS_COLLECTION = 'tarefas';
@@ -182,12 +183,43 @@ export function subscribeToCatalogo(callback: (itens: CatalogoItem[]) => void): 
 
 // Add or update Catalog Item
 export async function salvarItemCatalogo(item: CatalogoItem): Promise<void> {
+  if (item.categoria === 'modelos' && !esModeloValido(item.valor)) {
+    return; // Impede gravação de termos inválidos no catálogo
+  }
   const id = item.id || `cat-${item.categoria}-${Date.now()}`;
   const docRef = doc(db, CATALOGO_COLLECTION, id);
   try {
     await setDoc(docRef, { ...item, id }, { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, `${CATALOGO_COLLECTION}/${id}`);
+  }
+}
+
+// Limpa qualquer modelo inválido (cabeçalhos, números de quantidade) do Firestore
+export async function limparModelosInvalidosDoCatalogo(): Promise<number> {
+  try {
+    const colRef = collection(db, CATALOGO_COLLECTION);
+    const snap = await getDocs(colRef);
+    let removidos = 0;
+    const batch = writeBatch(db);
+
+    snap.forEach((docSnap) => {
+      const data = docSnap.data() as CatalogoItem;
+      if (data.categoria === 'modelos' && data.valor) {
+        if (!esModeloValido(data.valor)) {
+          batch.delete(docSnap.ref);
+          removidos++;
+        }
+      }
+    });
+
+    if (removidos > 0) {
+      await batch.commit();
+    }
+    return removidos;
+  } catch (error) {
+    console.error('Erro ao limpar modelos inválidos do catálogo:', error);
+    return 0;
   }
 }
 

@@ -62,7 +62,13 @@ export const DEFAULT_MODELOS: string[] = [
   'PC1169',
   'PC1155',
   'PC1191',
-  '32092'
+  '32092',
+  'AB119030',
+  'BU11351',
+  'AL32004',
+  'AL32012',
+  '13138',
+  'PLUG'
 ];
 
 export const DEFAULT_MAQUINAS: string[] = [

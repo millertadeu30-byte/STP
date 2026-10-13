@@ -6,7 +6,8 @@ import {
   subscribeToCatalogo,
   verificarEPopularBancoSeVazio,
   finalizarSetup,
-  excluirSetup
+  excluirSetup,
+  limparModelosInvalidosDoCatalogo,
 } from './services/setupService';
 import {
   DEFAULT_TAREFAS,
@@ -41,8 +42,10 @@ export default function App() {
 
   // Initialize and listen to Firestore in real-time
   useEffect(() => {
-    // Ensure initial spreadsheet seed data is ready in Firebase Firestore if empty
-    verificarEPopularBancoSeVazio();
+    // Ensure initial spreadsheet seed data is ready in Firebase Firestore if empty and purge any invalid models
+    verificarEPopularBancoSeVazio().then(() => {
+      limparModelosInvalidosDoCatalogo().catch(console.error);
+    });
 
     // Listen to live setups
     const unsubSetups = subscribeToSetups((records) => {

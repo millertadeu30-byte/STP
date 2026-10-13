@@ -1,6 +1,8 @@
 import { CatalogoItem } from '../types';
-import { salvarItemCatalogo } from './setupService';
+import { salvarItemCatalogo, limparModelosInvalidosDoCatalogo } from './setupService';
 import { DEFAULT_MAQUINAS } from '../data/defaultData';
+import { esModeloValido } from '../utils/validation';
+export { esModeloValido };
 
 export const SHEET_URL =
   'https://docs.google.com/spreadsheets/d/1p6Iz9bjF94Ji7aNNVXga8GWrGsIKti14RTt7r1fWhkc/edit?gid=355779717#gid=355779717';
@@ -25,9 +27,17 @@ export interface ProximoSetupItem {
   descartados?: ModeloDescartado[];
 }
 
+export interface PrintPlanilha {
+  id: string;
+  dataUrl: string;
+  nome: string;
+  criadoEm: string;
+}
+
 const LOCAL_STORAGE_INTERVALS_KEY = 'usinagem_maquinas_intervalos_v1';
 const LOCAL_STORAGE_CUSTOM_MODELOS_KEY = 'usinagem_maquinas_custom_modelos_v1';
 const LOCAL_STORAGE_PASTED_SHEET_KEY = 'usinagem_planilha_pasted_data_v1';
+const LOCAL_STORAGE_PRINTS_KEY = 'usinagem_prints_planilha_v1';
 
 export interface LinhaPlanilhaProducao {
   maquina?: string; // Coluna B (ou cabeçalho)
@@ -37,53 +47,51 @@ export interface LinhaPlanilhaProducao {
   status?: string;
 }
 
-// Mapeamento linha a linha da aba "Produções" do Google Planilhas (linhas 1 a 110)
-// REGRA ESTREITA:
-// 1. Cada máquina tem seu intervalo numérico configurado (ex: Linhas 45 a 50, 63 a 68, 73 a 76, 95 a 100).
-// 2. Os números são os índices da primeira coluna do canto esquerdo da planilha (Google Sheets).
-// 3. Coluna B = Máquina. Coluna C = Código do Modelo da Peça.
-// 4. Coluna G = Quantidade Produzida: se > 0, o modelo é DESCARTADO! Se == 0 ou vazia, o modelo é TRAZIDO.
-// 5. Todos os modelos válidos presentes no intervalo devem ser trazidos (não apenas 1, mas todos abaixo!).
-export const LINHAS_PLANILHA_PRODUCOES: Record<number, LinhaPlanilhaProducao> = {
-  // Linhas 3 a 8: N4 - TND180 (Bloco superior)
-  3: { maquina: 'N4 - TND180', status: 'HEADER' },
-  4: { modelo: 'E119033', qtdeProduzida: 50, status: 'EM_EXECUCAO' }, // Coluna G > 0 (Descartado)
-  5: {},
-  6: {},
-  7: {},
-  8: {},
 
-  // Linhas 9 a 14: N6 - STAR16 (Bloco superior)
-  9: { maquina: 'N6 - STAR16', status: 'HEADER' },
-  10: { modelo: 'EM_EXECUCAO', qtdeProduzida: 80, status: 'EM_EXECUCAO' },
-  11: { modelo: 'BR1404', qtdeProduzida: 0 },
-  12: { modelo: '41152', qtdeProduzida: 0 },
+// Mapeamento linha a linha da aba "Produções" do Google Planilhas (Foto real enviada pelo usuário)
+// 1. Cada máquina tem seu intervalo de linhas no canto esquerdo da planilha.
+// 2. Coluna B = Máquina. Coluna C = Código da Peça/Modelo.
+// 3. Coluna G = Qtde. Produzida: se > 0, o modelo é DESCARTADO! Se == 0 ou vazia, é TRAZIDO.
+export const LINHAS_PLANILHA_PRODUCOES: Record<number, LinhaPlanilhaProducao> = {
+  // Linhas 3 a 8: TC0009 - TBSY 60 (N9 - TBSY) - Foto 2 da planilha
+  3: { maquina: 'TC0009 - TBSY 60', status: 'HEADER' },
+  4: { modelo: 'BU11351', qtdeProduzida: 836, status: 'EM_EXECUCAO' }, // Coluna G: 836 (> 0, DESCARTADA!)
+  5: { modelo: 'AL32003', qtdeProduzida: 0 },  // TRAZ!
+  6: { modelo: 'AL104000', qtdeProduzida: 0 }, // TRAZ!
+  7: { modelo: 'AL32004', qtdeProduzida: 0 },  // TRAZ!
+  8: { modelo: 'AL32012', qtdeProduzida: 0 },  // TRAZ!
+
+  // Linhas 9 a 14: TC0014 - STAR SR38 (Torno 14 / N14 - STAR 38) - Foto 2 da planilha
+  9: { maquina: 'TC0014 - STAR SR38', status: 'HEADER' },
+  10: { modelo: 'AB119030', qtdeProduzida: 6027 }, // Coluna G: 6.027 (> 0, DESCARTADA!)
+  11: { modelo: 'AL132008', qtdeProduzida: 0 },   // TRAZ!
+  12: {},
   13: {},
   14: {},
 
-  // Linhas 15 a 20: N8 - STAR20J / N14 - STAR 38
-  15: { maquina: 'N8 - STAR20J', status: 'HEADER' },
-  16: { modelo: 'EM_EXECUCAO', qtdeProduzida: 40, status: 'EM_EXECUCAO' },
-  17: { modelo: 'PC11279', qtdeProduzida: 0 },
-  18: { modelo: 'PL1106', qtdeProduzida: 0 },
+  // Linhas 15 a 20: TC0008 - STAR SR20J (N8 - STAR20J) - Foto 2 da planilha
+  15: { maquina: 'TC0008 - STAR SR20J', status: 'HEADER' },
+  16: { modelo: 'PLUG', qtdeProduzida: 1091 },    // Coluna G: 1.091 (> 0, DESCARTADA!)
+  17: { modelo: 'PC11279', qtdeProduzida: 0 },   // TRAZ!
+  18: { modelo: 'PL1106', qtdeProduzida: 0 },    // TRAZ!
   19: {},
   20: {},
 
-  // Linhas 21 a 26: TC006 - STAR SB16
+  // Linhas 21 a 26: TC006 - STAR SB16 (N6 - STAR16) - Foto 2 da planilha
   21: { status: 'HEADER' },
-  22: { modelo: '32092', qtdeProduzida: 80076 }, // Coluna G: 80.076 (> 0, DESCARTADA!)
-  23: { maquina: 'TC006 - STAR SB16', modelo: '41746', qtdeProduzida: 0 }, // TRAZ!
+  22: { modelo: '32092', qtdeProduzida: 29122 }, // Coluna G: 29.122 (> 0, DESCARTADA!)
+  23: { maquina: 'TC006 - STAR SB16', modelo: 'BR1404', qtdeProduzida: 0 }, // TRAZ!
   24: {},
   25: {},
   26: {},
 
-  // Linhas 27 a 32: TC0010 - STAR SR32J (Torno 10 / N10 - STAR 32R) - Conforme Foto 2 real da planilha
+  // Linhas 27 a 32: TC0010 - STAR SR32J (Torno 10 / N10 - STAR 32R) - Foto 2 da planilha
   27: { maquina: 'TC0010 - STAR SR32J', status: 'HEADER' },
-  28: { modelo: 'AR11310', qtdeProduzida: 2396 }, // Coluna G: 2.396 (> 0, DESCARTADA!)
-  29: { modelo: 'AR11348', qtdeProduzida: 0 },    // TRAZ!
-  30: { modelo: 'PC1169', qtdeProduzida: 0 },     // TRAZ!
-  31: { modelo: 'PC1155', qtdeProduzida: 0 },     // TRAZ!
-  32: { modelo: 'PC1191', qtdeProduzida: 0 },     // TRAZ!
+  28: { modelo: '13138', qtdeProduzida: 2501 }, // Coluna G: 2.501 (> 0, DESCARTADA!)
+  29: { modelo: '41150', qtdeProduzida: 0 },    // TRAZ!
+  30: { modelo: 'PC1169', qtdeProduzida: 0 },   // TRAZ!
+  31: { modelo: 'PC1155', qtdeProduzida: 0 },   // TRAZ!
+  32: { modelo: 'PC1191', qtdeProduzida: 0 },   // TRAZ!
 
   // Linhas 33 a 38: TC0013 - STAR SR20R (N13 - STAR 20R)
   33: { maquina: 'TC0013 - STAR SR20R', status: 'HEADER' },
@@ -123,9 +131,9 @@ export const LINHAS_PLANILHA_PRODUCOES: Record<number, LinhaPlanilhaProducao> = 
   59: {},
   60: {},
   61: {},
-  62: {}, // Linhas 59 a 62 sem modelos (9160 NUNCA pertence a este torno!)
+  62: {},
 
-  // Linhas 63 a 68: TC0019 - STAR SR20R (N19 - STAR 20R) - Enxerga TODOS os modelos abaixo da linha 64!
+  // Linhas 63 a 68: TC0019 - STAR SR20R (N19 - STAR 20R)
   63: { maquina: 'TC0019 - STAR SR20R', status: 'HEADER' },
   64: { modelo: 'PC2003', qtdeProduzida: 88 }, // Coluna G: 88 (> 0, DESCARTADA!)
   65: { modelo: 'PC2015', qtdeProduzida: 0 },  // TRAZ!
@@ -133,7 +141,7 @@ export const LINHAS_PLANILHA_PRODUCOES: Record<number, LinhaPlanilhaProducao> = 
   67: { modelo: 'PU1642A', qtdeProduzida: 0 }, // TRAZ!
   68: {},
 
-  // Linhas 71 a 76: INDEX C100 (N21 - INDEX C100) - Enxerga TODOS os modelos abaixo da linha 72!
+  // Linhas 71 a 76: INDEX C100 (N21 - INDEX C100)
   71: { maquina: 'INDEX C100', status: 'HEADER' },
   72: { modelo: 'CU2538E10', qtdeProduzida: 771 }, // Coluna G: 771 (> 0, DESCARTADA!)
   73: { modelo: 'CU2541E10', qtdeProduzida: 0 },   // TRAZ!
@@ -165,7 +173,7 @@ export const LINHAS_PLANILHA_PRODUCOES: Record<number, LinhaPlanilhaProducao> = 
   93: {},
   94: {},
 
-  // Linhas 95 a 100: TC0018 - INDEX ABC Y (N18 - INDEX ABC) - Enxerga TODOS os modelos abaixo da linha 96!
+  // Linhas 95 a 100: TC0018 - INDEX ABC Y (N18 - INDEX ABC)
   95: { maquina: 'TC0018 - INDEX ABC Y', status: 'HEADER' },
   96: { modelo: 'AL33008', qtdeProduzida: 377 }, // Coluna G: 377 (> 0, DESCARTADA!)
   97: { modelo: 'AL32013', qtdeProduzida: 0 },   // TRAZ!
@@ -187,12 +195,12 @@ export const INTERVALOS_PADRAO_MAP: Record<string, string> = {
   'N4 - TND180': 'Linhas 89 a 94',
   'N6 - STAR16': 'Linhas 77 a 82',
   'N8 - STAR20J': 'Linhas 15 a 20',
-  'N9 - TBSY': 'Linhas 21 a 26',
+  'N9 - TBSY': 'Linhas 3 a 8',
   'N10 - STAR 32R': 'Linhas 27 a 32',
   'N11 - STAR 20R': 'Linhas 39 a 44',
   'N12 - TNG42': 'Linhas 83 a 88',
   'N13 - STAR 20R': 'Linhas 33 a 38',
-  'N14 - STAR 38': 'Linhas 15 a 20',
+  'N14 - STAR 38': 'Linhas 9 a 14',  // TORNO 14 É LINHAS 9 A 14 CONFORME PLANILHA REAL!
   'N16 - INDEX ABC': 'Linhas 45 a 50',
   'N17 - STAR 32JIII': 'Linhas 51 a 56',
   'N18 - INDEX ABC': 'Linhas 95 a 100',
@@ -202,7 +210,7 @@ export const INTERVALOS_PADRAO_MAP: Record<string, string> = {
   'TA-01': 'Linhas 101 a 106',
 };
 
-// Extrai números de início e fim: "Linhas 73 a 76", "95 a 100", "73-76", "45 a 50"
+// Extrai números de início e fim: "Linhas 9 a 14", "95 a 100", "73-76", "45 a 50"
 export function extrairIntervaloNumeros(intervaloStr?: string): { inicio: number; fim: number } | null {
   if (!intervaloStr) return null;
   const match = intervaloStr.match(/(\d+)\s*(?:a|à|ate|até|-|\.\.|\s+)\s*(\d+)/i);
@@ -226,8 +234,7 @@ export interface ExtracaoIntervaloResultado {
   descartados: ModeloDescartado[];
 }
 
-// Extrai os modelos presentes rigorosamente no intervalo configurado aplicando a regra:
-// "pega a máquina e traz os modelos que estão no intervalo descartando os que na coluna G já tem qtde produzida ou seja maior que 0"
+// Extrai os modelos presentes rigorosamente no intervalo configurado
 export function extrairModelosPorIntervaloComRegra(intervaloStr?: string): ExtracaoIntervaloResultado {
   const range = extrairIntervaloNumeros(intervaloStr);
   if (!range) return { modelos: [], descartados: [] };
@@ -235,7 +242,7 @@ export function extrairModelosPorIntervaloComRegra(intervaloStr?: string): Extra
   const modelosEncontrados: string[] = [];
   const descartados: ModeloDescartado[] = [];
 
-  // Se houver dados de planilha colados em localStorage pelo usuário, verifica neles primeiro!
+  // Se houver dados de planilha colados válidos em localStorage, busca deles primeiro!
   const colada = obterPlanilhaColada();
   if (colada && colada.trim().length > 30) {
     const extraidoPasted = extrairDeTextoColado(colada, range.inicio, range.fim);
@@ -250,7 +257,7 @@ export function extrairModelosPorIntervaloComRegra(intervaloStr?: string): Extra
     if (!dadosLinha || !dadosLinha.modelo) continue;
 
     const modRaw = dadosLinha.modelo.trim().toUpperCase();
-    if (!modRaw || modRaw === 'EM_EXECUCAO' || modRaw.includes('MODELO')) continue;
+    if (!modRaw || !esModeloValido(modRaw)) continue;
 
     const qtdeProduzida = dadosLinha.qtdeProduzida ?? 0;
     if (qtdeProduzida > 0) {
@@ -265,7 +272,7 @@ export function extrairModelosPorIntervaloComRegra(intervaloStr?: string): Extra
 
     const parts = modRaw.split(/[,;/]+/).map((s) => s.trim().toUpperCase());
     for (const mod of parts) {
-      if (mod && mod !== 'EM_EXECUCAO' && !modelosEncontrados.includes(mod)) {
+      if (mod && esModeloValido(mod) && !modelosEncontrados.includes(mod)) {
         modelosEncontrados.push(mod);
       }
     }
@@ -293,20 +300,19 @@ function extrairDeTextoColado(
     if (idx < 0 || idx >= lines.length) continue;
     const row = lines[idx];
 
-    // Coluna C = índice 2 (Modelo), fallback Coluna B = índice 1 se não for header
+    // Coluna C = índice 2 (Modelo), fallback Coluna B = índice 1 se for modelo válido
     let modeloRaw = (row[2] || '').trim().toUpperCase();
-    if (!modeloRaw && row[1]) {
-      const b = row[1].trim().toUpperCase();
-      if (!b.startsWith('TC') && !b.startsWith('TORNO') && !b.startsWith('CITIZEN') && !b.startsWith('INDEX')) {
-        modeloRaw = b;
+    if (!modeloRaw || !esModeloValido(modeloRaw)) {
+      if (row[1] && esModeloValido(row[1])) {
+        modeloRaw = row[1].trim().toUpperCase();
       }
     }
 
-    const colG = row[6] || row[7] || '';
-    if (!modeloRaw || modeloRaw === 'EM_EXECUCAO' || modeloRaw.includes('MODELO') || modeloRaw.includes('PEÇA')) {
+    if (!esModeloValido(modeloRaw)) {
       continue;
     }
 
+    const colG = row[6] || row[7] || '';
     const numProduzida = parseFloat(colG.replace(/\./g, '').replace(',', '.'));
     const jaTemProducao = !isNaN(numProduzida) && numProduzida > 0;
 
@@ -322,7 +328,7 @@ function extrairDeTextoColado(
 
     const parts = modeloRaw.split(/[,;/]+/).map((s) => s.trim().toUpperCase());
     for (const mod of parts) {
-      if (mod && mod.length >= 2 && !modelosEncontrados.includes(mod)) {
+      if (mod && esModeloValido(mod) && !modelosEncontrados.includes(mod)) {
         modelosEncontrados.push(mod);
       }
     }
@@ -335,7 +341,7 @@ export function extrairModelosPorIntervalo(intervaloStr?: string): string[] {
   return extrairModelosPorIntervaloComRegra(intervaloStr).modelos;
 }
 
-// Lista base de máquinas construída dinamicamente para corresponder às 16 máquinas cadastradas
+// Lista base de máquinas construída dinamicamente
 export function obterMaquinasBase(): ProximoSetupItem[] {
   const maquinasLista = DEFAULT_MAQUINAS;
 
@@ -356,44 +362,92 @@ export const MODELOS_PRODUCOES_MAP: ProximoSetupItem[] = obterMaquinasBase();
 
 export function obterIntervalosSalvos(): Record<string, string> {
   try {
-    // Limpeza profilática de divergências legadas
+    // 1. Limpeza de dados colados corrompidos (ex: "QTDE. PRODUZIDA", "2.861")
+    const pasted = localStorage.getItem(LOCAL_STORAGE_PASTED_SHEET_KEY);
+    if (pasted && (pasted.includes('QTDE') || pasted.includes('2.861') || pasted.includes('3.818'))) {
+      localStorage.removeItem(LOCAL_STORAGE_PASTED_SHEET_KEY);
+    }
+
+    // 2. Limpeza profilática de divergências legadas em modelos customizados
     const rawCustomModelos = localStorage.getItem(LOCAL_STORAGE_CUSTOM_MODELOS_KEY);
     if (rawCustomModelos) {
       const parsed = JSON.parse(rawCustomModelos);
       let changed = false;
+
+      // N14 - STAR 38 não pertence às linhas 15 a 20 (pertence a linhas 9 a 14)
+      if (parsed['N14 - STAR 38'] && (parsed['N14 - STAR 38'].includes('PC11279') || parsed['N14 - STAR 38'].includes('PL1106'))) {
+        delete parsed['N14 - STAR 38'];
+        changed = true;
+      }
+
       // N20 - CITIZEN não possui 9160
       if (parsed['N20 - CITIZEN'] && parsed['N20 - CITIZEN'].includes('9160')) {
         delete parsed['N20 - CITIZEN'];
         changed = true;
       }
+
       // N19 - STAR 20R não deve ficar limitado a apenas 1 modelo
       if (parsed['N19 - STAR 20R'] && parsed['N19 - STAR 20R'].length === 1 && parsed['N19 - STAR 20R'][0] === 'PC2015') {
         delete parsed['N19 - STAR 20R'];
         changed = true;
       }
+
       // N21 - INDEX C100 não deve ter modelos antigos incorretos
       if (parsed['N21 - INDEX C100'] && parsed['N21 - INDEX C100'].includes('CU2537')) {
         delete parsed['N21 - INDEX C100'];
         changed = true;
       }
+
       // N10 - STAR 32R não deve ter o modelo legado PL1151
       if (parsed['N10 - STAR 32R'] && (parsed['N10 - STAR 32R'].includes('PL1151') || parsed['N10 - STAR 32R'].length <= 1)) {
         delete parsed['N10 - STAR 32R'];
         changed = true;
       }
+
+      // Remove qualquer entrada poluída com "QTDE" ou "PRODUZIDA"
+      for (const mKey of Object.keys(parsed)) {
+        if (Array.isArray(parsed[mKey])) {
+          const filtrados = parsed[mKey].filter(esModeloValido);
+          if (filtrados.length !== parsed[mKey].length) {
+            parsed[mKey] = filtrados;
+            changed = true;
+          }
+        }
+      }
+
       if (changed) {
         localStorage.setItem(LOCAL_STORAGE_CUSTOM_MODELOS_KEY, JSON.stringify(parsed));
       }
     }
 
+    // 3. Intervalos salvos: garante N14 nas linhas 9 a 14 e N9 nas linhas 3 a 8
     const raw = localStorage.getItem(LOCAL_STORAGE_INTERVALS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
+      let changedInt = false;
+
+      // Corrige Torno 14 se estava com Linhas 15 a 20 salvo erroneamente
+      if (parsed['N14 - STAR 38'] && parsed['N14 - STAR 38'].includes('15')) {
+        parsed['N14 - STAR 38'] = 'Linhas 9 a 14';
+        changedInt = true;
+      }
+
+      // Corrige N9 - TBSY se estava com Linhas 21 a 26
+      if (parsed['N9 - TBSY'] && parsed['N9 - TBSY'].includes('21')) {
+        parsed['N9 - TBSY'] = 'Linhas 3 a 8';
+        changedInt = true;
+      }
+
       // Corrige N20 se estava com Linhas 81 a 86 antigamente
       if (parsed['N20 - CITIZEN'] && parsed['N20 - CITIZEN'].includes('81')) {
         delete parsed['N20 - CITIZEN'];
+        changedInt = true;
+      }
+
+      if (changedInt) {
         localStorage.setItem(LOCAL_STORAGE_INTERVALS_KEY, JSON.stringify(parsed));
       }
+
       return parsed;
     }
   } catch (e) {
@@ -406,6 +460,7 @@ export function restaurarIntervalosPadrao(): void {
   try {
     localStorage.removeItem(LOCAL_STORAGE_INTERVALS_KEY);
     localStorage.removeItem(LOCAL_STORAGE_CUSTOM_MODELOS_KEY);
+    localStorage.removeItem(LOCAL_STORAGE_PASTED_SHEET_KEY);
   } catch (e) {
     console.error('Erro ao restaurar intervalos:', e);
   }
@@ -438,15 +493,14 @@ export function obterModelosCustomizadosSalvos(): Record<string, string[]> {
 export function salvarModelosCustomizadosMaquina(maquina: string, modelos: string[]): void {
   try {
     const atuais = obterModelosCustomizadosSalvos();
-    atuais[maquina] = modelos;
+    atuais[maquina] = modelos.filter(esModeloValido);
     localStorage.setItem(LOCAL_STORAGE_CUSTOM_MODELOS_KEY, JSON.stringify(atuais));
   } catch (e) {
     console.error('Erro ao salvar modelos customizados no localStorage:', e);
   }
 }
 
-// Ao fechar o cadeado: salva o intervalo no localStorage, consulta IMEDIATAMENTE a planilha no intervalo indicado,
-// extrai todos os modelos (descartando Coluna G > 0), cadastra novos modelos no catálogo e retorna o resultado
+// Ao fechar o cadeado: salva o intervalo no localStorage, consulta IMEDIATAMENTE a planilha no intervalo indicado
 export async function salvarIntervaloMaquina(
   maquina: string,
   novoIntervalo: string
@@ -498,10 +552,36 @@ export function salvarPlanilhaColada(textoColado: string): void {
 
 export function obterPlanilhaColada(): string | null {
   try {
-    return localStorage.getItem(LOCAL_STORAGE_PASTED_SHEET_KEY);
+    const txt = localStorage.getItem(LOCAL_STORAGE_PASTED_SHEET_KEY);
+    if (txt && (txt.includes('QTDE') || txt.includes('2.861') || txt.includes('3.818'))) {
+      localStorage.removeItem(LOCAL_STORAGE_PASTED_SHEET_KEY);
+      return null;
+    }
+    return txt;
   } catch (e) {
     return null;
   }
+}
+
+export function limparPlanilhaColada(): void {
+  try {
+    localStorage.removeItem(LOCAL_STORAGE_PASTED_SHEET_KEY);
+  } catch (e) {}
+}
+
+// Suporte a armazenamento de prints anexados pelo usuário (Ctrl+V ou upload de imagem)
+export function obterPrintsPlanilha(): PrintPlanilha[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_PRINTS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return [];
+}
+
+export function salvarPrintsPlanilha(prints: PrintPlanilha[]): void {
+  try {
+    localStorage.setItem(LOCAL_STORAGE_PRINTS_KEY, JSON.stringify(prints));
+  } catch (e) {}
 }
 
 // Retorna todas as máquinas com os modelos rigorosamente lidos do intervalo configurado
@@ -578,10 +658,7 @@ export function normalizarNomeMaquina(raw: string, maquinasValidas: string[]): s
   return null;
 }
 
-// Parser completo que aplica cirurgicamente a regra descrita pelo usuário:
-// 1) Olha o intervalo configurado de cada máquina (ex: Linhas 73 a 76, 45 a 50, etc.)
-// 2) Traz TODOS os modelos válidos presentes no intervalo (não apenas 1)
-// 3) Descarta os modelos onde a Coluna G tem quantidade produzida > 0
+// Parser completo que aplica cirurgicamente a regra descrita pelo usuário
 export function parseSpreadsheetDataComRegra(
   rawText: string,
   maquinasBase: ProximoSetupItem[]
@@ -629,19 +706,17 @@ export function parseSpreadsheetDataComRegra(
 
       const row = lines[idx];
       let modeloRaw = (row[2] || '').trim().toUpperCase();
-      if (!modeloRaw && row[1]) {
-        const b = row[1].trim().toUpperCase();
-        if (!b.startsWith('TC') && !b.startsWith('TORNO') && !b.startsWith('CITIZEN') && !b.startsWith('INDEX')) {
-          modeloRaw = b;
+      if (!modeloRaw || !esModeloValido(modeloRaw)) {
+        if (row[1] && esModeloValido(row[1])) {
+          modeloRaw = row[1].trim().toUpperCase();
         }
       }
 
-      const colG = row[6] || row[7] || '';
-
-      if (!modeloRaw || modeloRaw === 'EM_EXECUCAO' || modeloRaw.includes('MODELO') || modeloRaw.includes('PEÇA')) {
+      if (!esModeloValido(modeloRaw)) {
         continue;
       }
 
+      const colG = row[6] || row[7] || '';
       const numProduzida = parseFloat(colG.replace(/\./g, '').replace(',', '.'));
       const jaTemProducao = !isNaN(numProduzida) && numProduzida > 0;
 
@@ -656,10 +731,9 @@ export function parseSpreadsheetDataComRegra(
         continue; // DESCARTA!
       }
 
-      // Se não tem produção > 0, mantém o modelo
       const parts = modeloRaw.split(/[,;/]+/).map((s) => s.trim().toUpperCase());
       for (const mod of parts) {
-        if (mod && mod.length >= 2 && !modelosEncontrados.includes(mod)) {
+        if (mod && esModeloValido(mod) && !modelosEncontrados.includes(mod)) {
           modelosEncontrados.push(mod);
         }
       }
@@ -688,6 +762,13 @@ export interface ChecarPlanilhaResult {
 export async function checarPlanilhaEAtualizarModelos(
   catalogoExistente: CatalogoItem[]
 ): Promise<ChecarPlanilhaResult> {
+  // Limpeza automática mandatória de modelos inválidos do Firestore a cada checagem
+  try {
+    await limparModelosInvalidosDoCatalogo();
+  } catch (e) {
+    console.error('Erro na limpeza de modelos inválidos:', e);
+  }
+
   let mappedData = obterModelosComIntervalos();
   let origem: 'live' | 'mapeamento' | 'colada' = 'mapeamento';
 
@@ -726,7 +807,7 @@ export async function checarPlanilhaEAtualizarModelos(
       }
     }
   } catch (err) {
-    // Falha silenciosa se exigir login Google corporativo
+    // Falha silenciosa se exigir login corporativo do Google
   }
 
   // 2. Se houver dados de planilha colados manualmente pelo usuário
@@ -746,7 +827,7 @@ export async function checarPlanilhaEAtualizarModelos(
   mappedData.forEach((item) => {
     item.modelos.forEach((m) => {
       const trimmed = m.trim().toUpperCase();
-      if (trimmed && trimmed.length >= 2) {
+      if (trimmed && esModeloValido(trimmed)) {
         todosModelosSet.add(trimmed);
       }
     });
