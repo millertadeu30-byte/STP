@@ -26,6 +26,10 @@ import {
   FileSpreadsheet,
   ExternalLink,
   LockOpen,
+  ClipboardPaste,
+  Info,
+  CheckCheck,
+  RotateCcw,
 } from 'lucide-react';
 import {
   checarPlanilhaEAtualizarModelos,
@@ -33,6 +37,9 @@ import {
   ChecarPlanilhaResult,
   salvarIntervaloMaquina,
   salvarModelosCustomizadosMaquina,
+  restaurarIntervalosPadrao,
+  restaurarIntervaloDeUmaMaquina,
+  obterModelosComIntervalos,
 } from '../services/sheetSyncService';
 
 interface GestorPanelProps {
@@ -92,26 +99,63 @@ export const GestorPanel: React.FC<GestorPanelProps> = ({
     setIntervalDraft(intervaloAtual || '');
   };
 
-  const handleSalvarIntervalo = (maquinaNome: string) => {
+  const handleSalvarIntervalo = async (maquinaNome: string) => {
     const limpo = intervalDraft.trim();
-    const novosModelos = salvarIntervaloMaquina(maquinaNome, limpo);
+    setIsCheckingSheet(true);
+    try {
+      const { modelos: novosModelos, descartados: novosDescartados } = await salvarIntervaloMaquina(
+        maquinaNome,
+        limpo
+      );
 
+      if (checkResultModal) {
+        setCheckResultModal({
+          ...checkResultModal,
+          todosEncontrados: checkResultModal.todosEncontrados.map((item) => {
+            if (item.maquina === maquinaNome) {
+              return {
+                ...item,
+                intervaloPlanilha: limpo || item.intervaloPlanilha,
+                modelos: novosModelos,
+                descartados: novosDescartados,
+              };
+            }
+            return item;
+          }),
+        });
+      }
+
+      showMsg(
+        `Cadeado fechado: ${maquinaNome} verificado na planilha! ${novosModelos.length} modelo(s) encontrado(s): ${novosModelos.join(', ') || 'Nenhum'}`
+      );
+    } finally {
+      setIsCheckingSheet(false);
+      setEditingMachineInterval(null);
+      setIntervalDraft('');
+    }
+  };
+
+  const handleRestaurarTodosIntervalos = () => {
+    restaurarIntervalosPadrao();
+    const padrao = obterModelosComIntervalos();
     if (checkResultModal) {
       setCheckResultModal({
         ...checkResultModal,
-        todosEncontrados: checkResultModal.todosEncontrados.map((item) => {
-          if (item.maquina === maquinaNome) {
-            return {
-              ...item,
-              intervaloPlanilha: limpo || item.intervaloPlanilha,
-              modelos: novosModelos,
-            };
-          }
-          return item;
-        }),
+        todosEncontrados: padrao,
       });
     }
+    showMsg('Todos os intervalos foram restaurados para o padrão original da planilha!');
+  };
 
+  const handleResetarIntervaloMaquina = (maquinaNome: string) => {
+    restaurarIntervaloDeUmaMaquina(maquinaNome);
+    const atualizado = obterModelosComIntervalos();
+    if (checkResultModal) {
+      setCheckResultModal({
+        ...checkResultModal,
+        todosEncontrados: atualizado,
+      });
+    }
     setEditingMachineInterval(null);
     setIntervalDraft('');
   };
@@ -828,32 +872,60 @@ export const GestorPanel: React.FC<GestorPanelProps> = ({
               </button>
             </div>
 
-            {/* Resumo */}
-            <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
-              <div className="flex items-center gap-2">
-                <span className="bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1 rounded-full">
-                  +{checkResultModal.modelosAdicionados.length} novos adicionados
-                </span>
-                <span className="bg-slate-200 text-slate-700 font-bold px-2.5 py-1 rounded-full">
-                  {checkResultModal.modelosJaExistentes.length} já cadastrados
+            {/* Resumo & Regra */}
+            <div className="p-4 bg-slate-50 border-b border-slate-200 space-y-2 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1 rounded-full">
+                    +{checkResultModal.modelosAdicionados.length} novos adicionados
+                  </span>
+                  <span className="bg-slate-200 text-slate-700 font-bold px-2.5 py-1 rounded-full">
+                    {checkResultModal.modelosJaExistentes.length} já cadastrados
+                  </span>
+                  <span className="bg-blue-100 text-blue-800 font-semibold px-2 py-0.5 rounded text-[11px] flex items-center gap-1">
+                    <CheckCheck className="w-3 h-3" />
+                    {checkResultModal.origem === 'live'
+                      ? 'Ao vivo'
+                      : checkResultModal.origem === 'colada'
+                      ? 'Planilha colada'
+                      : 'Mapeamento verificado'}
+                  </span>
+                </div>
+                <a
+                  href={SHEET_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[#004680] hover:underline font-bold flex items-center gap-1 text-[11px]"
+                >
+                  <span>Ver Planilha Original</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+
+              {/* Regra explícita */}
+              <div className="p-2 bg-white rounded-lg border border-slate-200 text-[11px] text-slate-700 flex items-start gap-1.5 shadow-2xs">
+                <Info className="w-3.5 h-3.5 text-[#004680] shrink-0 mt-0.5" />
+                <span>
+                  <strong>Regra aplicada:</strong> Identifica a máquina na <strong>Coluna B</strong>, traz os modelos da <strong>Coluna C</strong> no intervalo demarcado e <strong>descarta qualquer modelo onde a Coluna G tem quantidade produzida (&gt; 0)</strong>.
                 </span>
               </div>
-              <a
-                href={SHEET_URL}
-                target="_blank"
-                rel="noreferrer"
-                className="text-[#004680] hover:underline font-bold flex items-center gap-1 text-[11px]"
-              >
-                <span>Ver Planilha Original</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
             </div>
 
             {/* Lista de Máquinas e Modelos extraídos */}
             <div className="p-4 overflow-y-auto space-y-3 flex-1 text-xs">
-              <p className="text-slate-600 font-medium">
-                Os modelos que estão abaixo da primeira linha de cada máquina foram verificados e sincronizados:
-              </p>
+              <div className="flex flex-wrap items-center justify-between text-slate-600 font-medium text-xs gap-2">
+                <span>Modelos identificados no intervalo configurado de cada máquina (descartando Coluna G &gt; 0):</span>
+                <button
+                  type="button"
+                  onClick={handleRestaurarTodosIntervalos}
+                  className="text-[10px] font-bold text-amber-800 hover:text-amber-950 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded transition cursor-pointer flex items-center gap-1"
+                  title="Restaura todos os intervalos para o padrão original da planilha"
+                >
+                  <RotateCcw className="w-3 h-3 text-amber-700" />
+                  <span>Restaurar intervalos padrão</span>
+                </button>
+              </div>
+
               <div className="space-y-2">
                 {checkResultModal.todosEncontrados.map((item, idx) => (
                   <div
@@ -893,6 +965,14 @@ export const GestorPanel: React.FC<GestorPanelProps> = ({
                           </button>
                           <button
                             type="button"
+                            onClick={() => handleResetarIntervaloMaquina(item.maquina)}
+                            className="p-1 hover:bg-amber-200 bg-amber-100 text-amber-800 rounded transition cursor-pointer"
+                            title="Restaurar intervalo original desta máquina"
+                          >
+                            <RotateCcw className="w-2.5 h-2.5" />
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => setEditingMachineInterval(null)}
                             className="p-1 hover:bg-slate-200 text-slate-500 rounded transition cursor-pointer"
                             title="Cancelar edição"
@@ -914,7 +994,7 @@ export const GestorPanel: React.FC<GestorPanelProps> = ({
                         </div>
                       )}
                     </div>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
                       {item.modelos.length === 0 ? (
                         <span className="text-[11px] text-slate-400 italic">Nenhum modelo previsto</span>
                       ) : (
@@ -934,6 +1014,20 @@ export const GestorPanel: React.FC<GestorPanelProps> = ({
                           );
                         })
                       )}
+
+                      {/* Modelos descartados */}
+                      {item.descartados && item.descartados.map((d, dIdx) => (
+                        <span
+                          key={`gestor-desc-${dIdx}`}
+                          className="inline-flex items-center gap-1 text-[10px] text-slate-400 bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5 line-through opacity-70"
+                          title={`Descartado pois Coluna G possui ${d.qtdeProduzida ?? ''} peças produzidas (> 0)`}
+                        >
+                          <span>{d.modelo}</span>
+                          <span className="no-underline text-[9px] font-semibold text-amber-700 bg-amber-50 px-1 rounded">
+                            Col G &gt; 0
+                          </span>
+                        </span>
+                      ))}
                     </div>
                   </div>
                 ))}

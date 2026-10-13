@@ -9,6 +9,10 @@ import {
   obterModelosComIntervalos,
   salvarIntervaloMaquina,
   salvarModelosCustomizadosMaquina,
+  salvarPlanilhaColada,
+  parseSpreadsheetDataComRegra,
+  restaurarIntervalosPadrao,
+  restaurarIntervaloDeUmaMaquina,
 } from '../services/sheetSyncService';
 import {
   ListChecks,
@@ -27,6 +31,8 @@ import {
   Check,
   Lock,
   LockOpen,
+  ClipboardPaste,
+  Info,
 } from 'lucide-react';
 
 interface NovoSetupPanelProps {
@@ -64,6 +70,8 @@ export const NovoSetupPanel: React.FC<NovoSetupPanelProps> = ({
   const [isCheckingSheet, setIsCheckingSheet] = useState(false);
   const [sheetSuccessMessage, setSheetSuccessMessage] = useState<string | null>(null);
   const [checkResultModal, setCheckResultModal] = useState<ChecarPlanilhaResult | null>(null);
+  const [showColarModal, setShowColarModal] = useState(false);
+  const [colarTexto, setColarTexto] = useState('');
 
   const tiposDisponiveis = catalogo
     .filter((c) => c.categoria === 'tiposMaquinas' && c.ativo)
@@ -112,7 +120,8 @@ export const NovoSetupPanel: React.FC<NovoSetupPanelProps> = ({
       (p) => p.maquina.trim().toUpperCase() === maquina.trim().toUpperCase()
     );
     if (!item) return [];
-    return item.modelos.filter((mod) => modelosFiltrados.includes(mod));
+    // Retorna todos os modelos válidos do intervalo da máquina
+    return item.modelos;
   }, [maquina, modelosFiltrados, checkResultModal]);
 
   // Máquina sugerida pela planilha caso o usuário selecione primeiro o modelo
@@ -138,26 +147,63 @@ export const NovoSetupPanel: React.FC<NovoSetupPanelProps> = ({
     setIntervalDraft(intervaloAtual || '');
   };
 
-  const handleSalvarIntervalo = (maquinaNome: string) => {
+  const handleSalvarIntervalo = async (maquinaNome: string) => {
     const limpo = intervalDraft.trim();
-    const novosModelos = salvarIntervaloMaquina(maquinaNome, limpo);
+    setIsCheckingSheet(true);
+    try {
+      const { modelos: novosModelos, descartados: novosDescartados } = await salvarIntervaloMaquina(
+        maquinaNome,
+        limpo
+      );
 
+      if (checkResultModal) {
+        setCheckResultModal({
+          ...checkResultModal,
+          todosEncontrados: checkResultModal.todosEncontrados.map((item) => {
+            if (item.maquina === maquinaNome) {
+              return {
+                ...item,
+                intervaloPlanilha: limpo || item.intervaloPlanilha,
+                modelos: novosModelos,
+                descartados: novosDescartados,
+              };
+            }
+            return item;
+          }),
+        });
+      }
+
+      setSheetSuccessMessage(
+        `Cadeado fechado: ${maquinaNome} verificado na planilha! ${novosModelos.length} modelo(s) encontrado(s): ${novosModelos.join(', ') || 'Nenhum'}`
+      );
+      setTimeout(() => setSheetSuccessMessage(null), 4000);
+    } finally {
+      setIsCheckingSheet(false);
+      setEditingMachineInterval(null);
+      setIntervalDraft('');
+    }
+  };
+
+  const handleRestaurarTodosIntervalos = () => {
+    restaurarIntervalosPadrao();
+    const padrao = obterModelosComIntervalos();
     if (checkResultModal) {
       setCheckResultModal({
         ...checkResultModal,
-        todosEncontrados: checkResultModal.todosEncontrados.map((item) => {
-          if (item.maquina === maquinaNome) {
-            return {
-              ...item,
-              intervaloPlanilha: limpo || item.intervaloPlanilha,
-              modelos: novosModelos,
-            };
-          }
-          return item;
-        }),
+        todosEncontrados: padrao,
       });
     }
+  };
 
+  const handleResetarIntervaloMaquina = (maquinaNome: string) => {
+    restaurarIntervaloDeUmaMaquina(maquinaNome);
+    const atualizado = obterModelosComIntervalos();
+    if (checkResultModal) {
+      setCheckResultModal({
+        ...checkResultModal,
+        todosEncontrados: atualizado,
+      });
+    }
     setEditingMachineInterval(null);
     setIntervalDraft('');
   };
@@ -255,6 +301,23 @@ export const NovoSetupPanel: React.FC<NovoSetupPanelProps> = ({
       setTimeout(() => setSheetSuccessMessage(null), 4000);
     } catch (err: any) {
       setErrorMessage('Erro ao checar planilha: ' + (err.message || String(err)));
+    } finally {
+      setIsCheckingSheet(false);
+    }
+  };
+
+  const handleProcessarPlanilhaColada = async () => {
+    if (!colarTexto.trim()) return;
+    salvarPlanilhaColada(colarTexto.trim());
+    setIsCheckingSheet(true);
+    try {
+      const result = await checarPlanilhaEAtualizarModelos(catalogo);
+      setCheckResultModal(result);
+      setShowColarModal(false);
+      setSheetSuccessMessage('Dados processados aplicando a regra: Coluna B sem Coluna G > 0!');
+      setTimeout(() => setSheetSuccessMessage(null), 4000);
+    } catch (err: any) {
+      setErrorMessage('Erro ao processar dados da planilha: ' + (err.message || String(err)));
     } finally {
       setIsCheckingSheet(false);
     }
@@ -689,34 +752,72 @@ export const NovoSetupPanel: React.FC<NovoSetupPanelProps> = ({
               </button>
             </div>
 
-            {/* Banner Informativo */}
-            <div className="p-4 bg-emerald-50 border-b border-emerald-100 flex items-center justify-between gap-2">
-              <div>
-                <p className="text-xs font-bold text-emerald-900">
-                  {checkResultModal.modelosAdicionados.length > 0
-                    ? `Foram inseridos ${checkResultModal.modelosAdicionados.length} novos modelos no catálogo!`
-                    : 'Todos os próximos modelos da planilha já estavam no catálogo.'}
-                </p>
-                <p className="text-[11px] text-emerald-700 mt-0.5">
-                  Lidos automaticamente da aba <strong>Produções</strong> (próximos modelos abaixo da linha 1).
-                </p>
+            {/* Banner Informativo & Regra */}
+            <div className="p-4 bg-emerald-50 border-b border-emerald-100 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs font-bold text-emerald-900">
+                    {checkResultModal.modelosAdicionados.length > 0
+                      ? `Foram inseridos ${checkResultModal.modelosAdicionados.length} novos modelos no catálogo!`
+                      : 'Todos os próximos modelos da planilha já estavam no catálogo.'}
+                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-800 bg-emerald-200/60 px-2 py-0.5 rounded">
+                      <CheckCheck className="w-3 h-3 text-emerald-700" />
+                      {checkResultModal.origem === 'live'
+                        ? 'Sincronizado ao vivo via Google Sheets'
+                        : checkResultModal.origem === 'colada'
+                        ? 'Sincronizado via Dados Colados da Planilha'
+                        : 'Mapeamento cirúrgico da aba Produções'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowColarModal(true)}
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:text-blue-900 bg-white border border-blue-200 hover:border-blue-300 px-2.5 py-1 rounded-md shadow-2xs transition cursor-pointer"
+                    title="Colar dados copiados diretamente do Google Planilhas (Ctrl+V)"
+                  >
+                    <ClipboardPaste className="w-3.5 h-3.5" />
+                    <span>Colar Planilha</span>
+                  </button>
+
+                  <a
+                    href={SHEET_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 hover:text-emerald-950 underline shrink-0"
+                  >
+                    <span>Abrir link</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
               </div>
-              <a
-                href={SHEET_URL}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 hover:text-emerald-950 underline shrink-0"
-              >
-                <span>Abrir planilha</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
+
+              {/* Regra explícita */}
+              <div className="p-2 bg-white/80 rounded-lg border border-emerald-200/80 text-[11px] text-slate-700 flex items-start gap-1.5 shadow-2xs">
+                <Info className="w-3.5 h-3.5 text-[#004680] shrink-0 mt-0.5" />
+                <span>
+                  <strong>Regra ativa:</strong> Identifica a máquina na <strong>Coluna B</strong>, traz os modelos da <strong>Coluna C</strong> dentro do intervalo configurado e <strong>descarta qualquer modelo onde a Coluna G tem quantidade produzida (&gt; 0)</strong>.
+                </span>
+              </div>
             </div>
 
             {/* Lista de Máquinas e Modelos extraídos */}
             <div className="p-4 overflow-y-auto space-y-3 flex-1 text-xs">
-              <div className="flex items-center justify-between text-slate-600 font-medium text-[11px]">
-                <span>Modelos verificados abaixo da linha 1 de cada máquina:</span>
-                <span className="text-[10px] text-slate-400 italic">Toque no modelo para preencher o formulário</span>
+              <div className="flex flex-wrap items-center justify-between text-slate-600 font-medium text-[11px] gap-2">
+                <span>Modelos identificados no intervalo configurado:</span>
+                <button
+                  type="button"
+                  onClick={handleRestaurarTodosIntervalos}
+                  className="text-[10px] font-bold text-amber-800 hover:text-amber-950 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded transition cursor-pointer flex items-center gap-1"
+                  title="Restaura todos os intervalos para o padrão original da planilha"
+                >
+                  <RotateCcw className="w-3 h-3 text-amber-700" />
+                  <span>Restaurar intervalos padrão</span>
+                </button>
               </div>
 
               <div className="space-y-2">
@@ -761,6 +862,14 @@ export const NovoSetupPanel: React.FC<NovoSetupPanelProps> = ({
                           </button>
                           <button
                             type="button"
+                            onClick={() => handleResetarIntervaloMaquina(item.maquina)}
+                            className="p-1 hover:bg-amber-200 bg-amber-100 text-amber-800 rounded transition cursor-pointer"
+                            title="Restaurar intervalo padrão desta máquina"
+                          >
+                            <RotateCcw className="w-2.5 h-2.5" />
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => setEditingMachineInterval(null)}
                             className="p-1 hover:bg-slate-200 text-slate-500 rounded transition cursor-pointer"
                             title="Cancelar edição"
@@ -788,6 +897,7 @@ export const NovoSetupPanel: React.FC<NovoSetupPanelProps> = ({
                         <span className="text-[11px] text-slate-400 italic">Nenhum modelo previsto</span>
                       )}
 
+                      {/* Modelos válidos trazidos */}
                       {item.modelos.map((m, mIdx) => {
                         const isNovo = checkResultModal.modelosAdicionados.includes(m.toUpperCase());
                         return (
@@ -822,6 +932,20 @@ export const NovoSetupPanel: React.FC<NovoSetupPanelProps> = ({
                           </div>
                         );
                       })}
+
+                      {/* Modelos descartados porque Coluna G > 0 */}
+                      {item.descartados && item.descartados.map((d, dIdx) => (
+                        <span
+                          key={`desc-${dIdx}`}
+                          className="inline-flex items-center gap-1 text-[10px] text-slate-400 bg-slate-100/80 border border-slate-200 rounded px-1.5 py-0.5 line-through opacity-70 cursor-help"
+                          title={`Descartado pela regra da Coluna G: ${d.modelo} possui ${d.qtdeProduzida ?? ''} peças já produzidas (> 0)`}
+                        >
+                          <span>{d.modelo}</span>
+                          <span className="no-underline text-[9px] font-semibold text-amber-700 bg-amber-50 px-1 rounded">
+                            Col G &gt; 0
+                          </span>
+                        </span>
+                      ))}
 
                       {/* Inline form para adicionar modelo nesta máquina */}
                       {addingModelToMachine === item.maquina ? (
@@ -888,6 +1012,68 @@ export const NovoSetupPanel: React.FC<NovoSetupPanelProps> = ({
                 className="bg-[#004680] hover:bg-blue-800 text-white font-bold px-5 py-2 rounded-lg text-xs uppercase tracking-wider transition cursor-pointer"
               >
                 Entendido / Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para Colar dados copiados da Planilha (Ctrl+V) */}
+      {showColarModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full flex flex-col overflow-hidden">
+            <div className="bg-[#004680] text-white p-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ClipboardPaste className="w-5 h-5 text-emerald-400" />
+                <h3 className="font-extrabold text-sm uppercase tracking-wide">
+                  Colar Dados da Planilha (Google Sheets)
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowColarModal(false)}
+                className="text-white/80 hover:text-white p-1 rounded transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-3 text-xs">
+              <p className="text-slate-600">
+                Selecione as linhas da sua aba <strong>Produções</strong> no Google Planilhas ou Excel, copie (<kbd className="bg-slate-100 border px-1 rounded font-mono">Ctrl+C</kbd>) e cole abaixo (<kbd className="bg-slate-100 border px-1 rounded font-mono">Ctrl+V</kbd>):
+              </p>
+
+              <textarea
+                value={colarTexto}
+                onChange={(e) => setColarTexto(e.target.value)}
+                placeholder="Cole aqui as linhas copiadas da planilha (com Coluna A, Coluna B e Coluna G)..."
+                rows={8}
+                className="w-full font-mono text-[11px] p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-[#004680] focus:border-[#004680] bg-slate-50"
+              />
+
+              <div className="bg-blue-50 border border-blue-200 text-blue-900 p-2.5 rounded-lg text-[11px] flex items-start gap-1.5">
+                <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                <span>
+                  O sistema obedecerá aos intervalos configurados nos cadeados, extrairá os modelos da <strong>Coluna B</strong> e <strong>descartará automaticamente quem tiver quantidade produzida (&gt; 0) na Coluna G</strong>!
+                </span>
+              </div>
+            </div>
+
+            <div className="p-3 bg-slate-50 border-t border-slate-200 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowColarModal(false)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-lg transition cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleProcessarPlanilhaColada}
+                disabled={!colarTexto.trim()}
+                className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold px-4 py-2 rounded-lg text-xs uppercase tracking-wider transition cursor-pointer flex items-center gap-1.5"
+              >
+                <Check className="w-4 h-4" />
+                <span>Processar com a Regra</span>
               </button>
             </div>
           </div>
